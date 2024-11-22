@@ -5,8 +5,11 @@ from coug import Coug
 
 ######## CougUV State Estimation #########
 
-def generate_commands(u_semantic, timestep): # TODO @Blake
+def generate_commands(u_semantic: list) -> np.ndarray:
     '''
+    :param u_semantic: A list of duples, where the first item in the duple is a command and the second item is how long to hold that command.
+    
+
     Four control inputs: Rudder angle, left elevator angle, right elevator angle, and thruster rpm. 
     Goal: generate a Nx4 matrix, where each row is the commands at that timestep. 
 
@@ -17,11 +20,15 @@ def generate_commands(u_semantic, timestep): # TODO @Blake
 
     So the u_semantic input would be a list of duples ( ([20, 5, 5, 10], 4), ([0, 0, 0, 20], 10), ...) where the first
     item in the duple is a command and the second item is how long to hold that command. 
-    
-    Or something to that effect, do it however you want. Does this make sense?
     '''
-
-    commands = 1
+    commands = []
+    for command, duration in u_semantic:
+        assert len(command) == 4, "Command must be a list of 4 values"
+        assert all(isinstance(x, (int, float)) for x in command), "Command values must be integers or floats"
+        assert isinstance(duration, int), "Duration must be an integer"
+        for _ in range(duration):
+            commands.append(command)
+    commands = np.array(commands)
 
     return commands
 
@@ -55,7 +62,7 @@ def cost(params, truth, u, timestep):
 timestep = 0.01 # (s). TODO: Tune this? 
 
 # Create list of commands
-semantic_commands = 1 # @Carter generate this part by hand 
+semantic_commands = [([10,0,0,0],1)] # @Carter generate this part by hand 
 commands = generate_commands(semantic_commands)
 
 # Simulate with true parameters to get ground truth
@@ -71,11 +78,11 @@ params_init = 1 #TODO: figure out how we want the parameter variable to look/act
     # and simulates the full behavior, then calculates the residuals against the true behavior.
     # The optimizer will calculate the gradient and adjust the parameters accordingly. 
 
-opt_params = opt.least_squares(residuals, params_init, method='lm')
+# opt_params = opt.least_squares(residuals, params_init, method='lm')
 # this is gonna take absolutely forever to run. 
 # When we're just getting started, start with a really short list of commands.
 # It won't be long enough ot converge, but it will at least not take a milion years just to test. 
 # If I were a good programmer I would make unit tests, instead of writing everythig and testing the whole system at once...
 
-print(opt_params)
+# print(opt_params)
 # find some convenent way to compare optimal param to actual params
