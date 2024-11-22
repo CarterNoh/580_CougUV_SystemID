@@ -15,6 +15,7 @@ class Coug:
         self.u_actual = np.array([0, 0, 0, 0], float)    # control input vector
 
         # Environment Constants
+        # TODO: should some of these be class variable's instead?
         self.D2R = np.pi / 180          # deg2rad
         self.rho = 1000                 # density of water (kg/m^3)
         self.g = 9.81                   # acceleration of gravity (m/s^2)
@@ -39,7 +40,7 @@ class Coug:
 
         # Other damping/force parameters
         self.Cd = 0.42                  # Coefficient of drag for entire vehicle
-        self.r44 = 0.3                  # Added 
+        self.r44 = 0.3                  # Added #TODO: what is this?
 
         # Fin Parameters
         self.S_fin = 0.00697            # Surface area of one side of a fin
@@ -85,6 +86,11 @@ class Coug:
         # Something like the following pseudocode:
         # for key in params:
             # self.{key} = params[key]
+        for key in params:
+            if key not in self.__dict__:
+                raise ValueError(f"Invalid parameter: {key}")
+            else:
+                self.__dict__[key] = params[key]
     
     def calc_parameters(self):
         '''Calculate additional vehicle parameters based on inputs.'''
@@ -360,18 +366,6 @@ class Coug:
             
         return x 
 
-    def Smtrx(a):
-        """
-        S = Smtrx(a) computes the 3x3 vector skew-symmetric matrix S(a) = -S(a)'.
-        The cross product satisfies: a x b = S(a)b. 
-        """
-    
-        S = np.array([ 
-            [ 0, -a[2], a[1] ],
-            [ a[2],   0,     -a[0] ],
-            [-a[1],   a[0],   0 ]  ])
-
-        return S
 
     def Hmtrx(self, r):
         """
@@ -385,7 +379,7 @@ class Coug:
         """
 
         H = np.identity(6,float)
-        H[0:3, 3:6] = self.Smtrx(r).T
+        H[0:3, 3:6] = Smtrx(r).T
 
         return H
 
@@ -670,3 +664,16 @@ class Coug:
             ])
         
         return g
+#Todo: move to a helper file
+def Smtrx(a):
+        """
+        S = Smtrx(a) computes the 3x3 vector skew-symmetric matrix S(a) = -S(a)'.
+        The cross product satisfies: a x b = S(a)b. 
+        """
+    
+        S = np.array([ 
+            [ 0, -a[2], a[1] ],
+            [ a[2],   0,     -a[0] ],
+            [-a[1],   a[0],   0 ]  ])
+
+        return S
