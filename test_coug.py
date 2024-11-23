@@ -25,3 +25,13 @@ def test_override_params_good():
             assert np.array_equal(coug1.__dict__[key], params[key])
         else:
             assert coug1.__dict__[key] == params[key]
+
+def test_override_params_bad():
+    coug1 = coug.Coug()
+
+    params = {
+        "dummyParam": 0
+    }
+    with pytest.raises(ValueError):
+        coug1.override_params(params)
+    

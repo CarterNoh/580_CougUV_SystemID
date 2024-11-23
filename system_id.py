@@ -66,7 +66,7 @@ semantic_commands = [([10,0,0,0],1)] # @Carter generate this part by hand
 commands = generate_commands(semantic_commands)
 
 # Simulate with true parameters to get ground truth
-true_state = simulate(None, commands, timestep)
+# true_state = simulate(None, commands, timestep)
 
 # Initialize parameters to something
 params_init = 1 #TODO: figure out how we want the parameter variable to look/act/work

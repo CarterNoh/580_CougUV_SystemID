@@ -72,20 +72,12 @@ class Coug:
 
         self.calc_parameters()
         
-    # TODO: Write this function
     def override_params(self, params):
         '''
         Input: 
         - params: a dictionary of parameters we want to make overwriteable.
          Keys: 
-        - 
-        - 
         '''
-
-        # TODO: define all the params we want to solve for and overwrite the appropriate variable. 
-        # Something like the following pseudocode:
-        # for key in params:
-            # self.{key} = params[key]
         for key in params:
             if key not in self.__dict__:
                 raise ValueError(f"Invalid parameter: {key}")
@@ -337,7 +329,7 @@ class Coug:
         return u_actual
     
     # TODO: Write this function
-    def step(self, nu_dot, u_actual_dot):
+    def step(self, nu_dot, u_actual_dot, method='euler'):
         # TODO: Write a Runge-Kutta 4 thing to integrate the state and actuator. 
         # Calcuate the new velocities nu and position eta and the new control positions. 
 
@@ -481,57 +473,7 @@ class Coug:
             
         return C
 
-    def Hoerner(B,T):
-        """
-        CY_2D = Hoerner(B,T)
-        Hoerner computes the 2D Hoerner cross-flow form coeff. as a function of beam 
-        B and draft T.The data is digitized and interpolation is used to compute 
-        other data point than those in the table
-        """
-        
-        # DATA = [B/2T  C_D]
-        DATA1 = np.array([
-            0.0109,0.1766,0.3530,0.4519,0.4728,0.4929,0.4933,0.5585,0.6464,0.8336,
-            0.9880,1.3081,1.6392,1.8600,2.3129,2.6000,3.0088,3.4508, 3.7379,4.0031 
-            ])
-        DATA2 = np.array([
-            1.9661,1.9657,1.8976,1.7872,1.5837,1.2786,1.2108,1.0836,0.9986,0.8796,
-            0.8284,0.7599,0.6914,0.6571,0.6307,0.5962,0.5868,0.5859,0.5599,0.5593 
-            ])
-
-        CY_2D = np.interp( B / (2 * T), DATA1, DATA2 )
-            
-        return CY_2D
-
-    def crossFlowDrag(L,B,T,nu_r):
-        """
-        tau_crossflow = crossFlowDrag(L,B,T,nu_r) computes the cross-flow drag 
-        integrals for a marine craft using strip theory. 
-
-        M d/dt nu_r + C(nu_r)*nu_r + D*nu_r + g(eta) = tau + tau_crossflow
-        """
-
-        rho = 1026               # density of water
-        n = 20                   # number of strips
-
-        dx = L/20             
-        Cd_2D = Hoerner(B,T)    # 2D drag coefficient based on Hoerner's curve
-
-        Yh = 0
-        Nh = 0
-        xL = -L/2
-        
-        for i in range(0,n+1):
-            v_r = nu_r[1]             # relative sway velocity
-            r = nu_r[5]               # yaw rate
-            Ucf = abs(v_r + xL * r) * (v_r + xL * r)
-            Yh = Yh - 0.5 * rho * T * Cd_2D * Ucf * dx         # sway force
-            Nh = Nh - 0.5 * rho * T * Cd_2D * xL * Ucf * dx    # yaw moment
-            xL += dx
-            
-        tau_crossflow = np.array([0, Yh, 0, 0, 0, Nh],float)
-
-        return tau_crossflow
+    
 
     def forceLiftDrag(self, b,S,CD_0,alpha,U_r):
         """
@@ -552,6 +494,7 @@ class Coug:
             tau_liftdrag:  6x1 generalized force vector
         """
 
+        #helper function
         def coeffLiftDrag(b,S,CD_0,alpha,sigma):
             
             """
@@ -634,7 +577,74 @@ class Coug:
 
         return tau_liftdrag
 
-    def gvect(W,B,theta,phi,r_bg,r_bb):
+    
+#Todo: move to a helper file
+def Smtrx(a):
+        """
+        S = Smtrx(a) computes the 3x3 vector skew-symmetric matrix S(a) = -S(a)'.
+        The cross product satisfies: a x b = S(a)b. 
+        """
+    
+        S = np.array([ 
+            [ 0, -a[2], a[1] ],
+            [ a[2],   0,     -a[0] ],
+            [-a[1],   a[0],   0 ]  ])
+
+        return S
+
+def Hoerner(B,T):
+    """
+    CY_2D = Hoerner(B,T)
+    Hoerner computes the 2D Hoerner cross-flow form coeff. as a function of beam 
+    B and draft T.The data is digitized and interpolation is used to compute 
+    other data point than those in the table
+    """
+    
+    # DATA = [B/2T  C_D]
+    DATA1 = np.array([
+        0.0109,0.1766,0.3530,0.4519,0.4728,0.4929,0.4933,0.5585,0.6464,0.8336,
+        0.9880,1.3081,1.6392,1.8600,2.3129,2.6000,3.0088,3.4508, 3.7379,4.0031 
+        ])
+    DATA2 = np.array([
+        1.9661,1.9657,1.8976,1.7872,1.5837,1.2786,1.2108,1.0836,0.9986,0.8796,
+        0.8284,0.7599,0.6914,0.6571,0.6307,0.5962,0.5868,0.5859,0.5599,0.5593 
+        ])
+
+    CY_2D = np.interp( B / (2 * T), DATA1, DATA2 )
+        
+    return CY_2D
+
+def crossFlowDrag(L,B,T,nu_r):
+    """
+    tau_crossflow = crossFlowDrag(L,B,T,nu_r) computes the cross-flow drag 
+    integrals for a marine craft using strip theory. 
+
+    M d/dt nu_r + C(nu_r)*nu_r + D*nu_r + g(eta) = tau + tau_crossflow
+    """
+
+    rho = 1026               # density of water
+    n = 20                   # number of strips
+
+    dx = L/20             
+    Cd_2D = Hoerner(B,T)    # 2D drag coefficient based on Hoerner's curve
+
+    Yh = 0
+    Nh = 0
+    xL = -L/2
+    
+    for i in range(0,n+1):
+        v_r = nu_r[1]             # relative sway velocity
+        r = nu_r[5]               # yaw rate
+        Ucf = abs(v_r + xL * r) * (v_r + xL * r)
+        Yh = Yh - 0.5 * rho * T * Cd_2D * Ucf * dx         # sway force
+        Nh = Nh - 0.5 * rho * T * Cd_2D * xL * Ucf * dx    # yaw moment
+        xL += dx
+        
+    tau_crossflow = np.array([0, Yh, 0, 0, 0, Nh],float)
+
+    return tau_crossflow
+
+def gvect(W,B,theta,phi,r_bg,r_bb):
         """
         g = gvect(W,B,theta,phi,r_bg,r_bb) computes the 6x1 vector of restoring 
         forces about an arbitrarily point CO for a submerged body. 
@@ -664,16 +674,3 @@ class Coug:
             ])
         
         return g
-#Todo: move to a helper file
-def Smtrx(a):
-        """
-        S = Smtrx(a) computes the 3x3 vector skew-symmetric matrix S(a) = -S(a)'.
-        The cross product satisfies: a x b = S(a)b. 
-        """
-    
-        S = np.array([ 
-            [ 0, -a[2], a[1] ],
-            [ a[2],   0,     -a[0] ],
-            [-a[1],   a[0],   0 ]  ])
-
-        return S

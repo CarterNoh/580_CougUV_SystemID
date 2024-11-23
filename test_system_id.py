@@ -12,7 +12,6 @@ def test_generate_commands_ouput():
     semantic_commands = [([1,2,3,4], 4), ([5,6,7,8], 2)]
     output = system_id.generate_commands(semantic_commands)
     assert np.array_equal(output, desired_output)
-    print("test_generate_commands passed")
 
 def test_generate_commands_bad_input():
     too_long = [([1,2,3,4,5], 4)]
