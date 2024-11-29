@@ -209,8 +209,9 @@ class Coug:
         tau_sum = tau_control + tau_liftdrag + tau_crossflow - np.matmul(C+D,nu_r) - g
         nu_dot = Dnu_c + np.matmul(self.Minv, tau_sum) # Acceleration from forces plus ocean current acceleration
 
-        # Move the actuators towards commanded value & saturate
+        # Move the actuators towards commanded value & saturate #TODO: saturating isn't being down here
         u_actual_dot = self.actuator_dynamics(sampleTime, u_control, self.u_actual) 
+
 
         return nu_dot, u_actual_dot
     
@@ -339,26 +340,7 @@ class Coug:
         
     #### Helper functions ####
 
-    def ssa(angle):
-        """
-        angle = ssa(angle) returns the smallest-signed angle in [ -pi, pi )
-        """
-        angle = (angle + np.pi) % (2 * np.pi) - np.pi
-            
-        return angle 
-
-    def sat(x, x_min, x_max):
-        """
-        x = sat(x,x_min,x_max) saturates a signal x such that x_min <= x <= x_max
-        """
-        if x > x_max:
-            x = x_max 
-        elif x < x_min:
-            x = x_min
-            
-        return x 
-
-
+    #does this one need to be in the class
     def Hmtrx(self, r):
         """
         H = Hmtrx(r) computes the 6x6 system transformation matrix
@@ -375,58 +357,15 @@ class Coug:
 
         return H
 
-    def Rzyx(phi, theta, psi):
-        """
-        R = Rzyx(phi,theta,psi) computes the Euler angle rotation matrix R in SO(3)
-        using the zyx convention
-        converts body to world 
-        """
-        
-        cphi = np.cos(phi)
-        sphi = np.sin(phi)
-        cth  = np.cos(theta)
-        sth  = np.sin(theta)
-        cpsi = np.cos(psi)
-        spsi = np.sin(psi)
-        
-        R = np.array([
-            [ cpsi*cth, -spsi*cphi+cpsi*sth*sphi, spsi*sphi+cpsi*cphi*sth ],
-            [ spsi*cth,  cpsi*cphi+sphi*sth*spsi, -cpsi*sphi+sth*spsi*cphi ],
-            [ -sth,      cth*sphi,                 cth*cphi ] ])
-
-        return R
-
-    def Tzyx(phi, theta):
-        """
-        T = Tzyx(phi,theta) computes the Euler angle attitude
-        transformation matrix T using the zyx convention
-        body frame angular velocities (p,q,r) to Euler angle rates (phi_dot, theta_dot, psi_dot)
-        """
-        
-        cphi = np.cos(phi)
-        sphi = np.sin(phi)
-        cth  = np.cos(theta)
-        sth  = np.sin(theta)    
-
-        try: 
-            T = np.array([
-                [ 1,  sphi*sth/cth,  cphi*sth/cth ],
-                [ 0,  cphi,          -sphi],
-                [ 0,  sphi/cth,      cphi/cth] ])
-            
-        except ZeroDivisionError:  
-            print ("Tzyx is singular for theta = +-90 degrees." )
-            
-        return T
-
+    #might not need to be in the class
     def attitudeEuler(self, eta, nu, sampleTime):
         """
         eta = attitudeEuler(eta,nu,sampleTime) computes the generalized 
         position/Euler angles eta[k+1]
         """
     
-        p_dot   = np.matmul(self.Rzyx(eta[3], eta[4], eta[5]), nu[0:3] )
-        v_dot   = np.matmul(self.Tzyx(eta[3], eta[4]), nu[3:6] )
+        p_dot   = np.matmul(Rzyx(eta[3], eta[4], eta[5]), nu[0:3] )
+        v_dot   = np.matmul(Tzyx(eta[3], eta[4]), nu[3:6] )
 
         # Forward Euler integration
         eta[0:3] = eta[0:3] + sampleTime * p_dot
@@ -473,8 +412,6 @@ class Coug:
             
         return C
 
-    
-
     def forceLiftDrag(self, b,S,CD_0,alpha,U_r):
         """
         tau_liftdrag = forceLiftDrag(b,S,CD_0,alpha,Ur) computes the hydrodynamic
@@ -493,6 +430,7 @@ class Coug:
         Returns:
             tau_liftdrag:  6x1 generalized force vector
         """
+        raise NotImplementedError
 
         #helper function
         def coeffLiftDrag(b,S,CD_0,alpha,sigma):
@@ -674,3 +612,66 @@ def gvect(W,B,theta,phi,r_bg,r_bb):
             ])
         
         return g
+
+def ssa(angle):
+    """
+    angle = ssa(angle) returns the smallest-signed angle in [ -pi, pi )
+    """
+    angle = (angle + np.pi) % (2 * np.pi) - np.pi
+        
+    return angle 
+
+def sat(x, x_min, x_max):
+    """
+    x = sat(x,x_min,x_max) saturates a signal x such that x_min <= x <= x_max
+    """
+    if x > x_max:
+        x = x_max 
+    elif x < x_min:
+        x = x_min
+        
+    return x 
+
+def Rzyx(phi, theta, psi):
+        """
+        R = Rzyx(phi,theta,psi) computes the Euler angle rotation matrix R in SO(3)
+        using the zyx convention
+        converts body to world 
+        """
+        
+        cphi = np.cos(phi)
+        sphi = np.sin(phi)
+        cth  = np.cos(theta)
+        sth  = np.sin(theta)
+        cpsi = np.cos(psi)
+        spsi = np.sin(psi)
+        
+        R = np.array([
+            [ cpsi*cth, -spsi*cphi+cpsi*sth*sphi, spsi*sphi+cpsi*cphi*sth ],
+            [ spsi*cth,  cpsi*cphi+sphi*sth*spsi, -cpsi*sphi+sth*spsi*cphi ],
+            [ -sth,      cth*sphi,                 cth*cphi ] ])
+
+        return R
+
+def Tzyx(phi, theta):
+    """
+    T = Tzyx(phi,theta) computes the Euler angle attitude
+    transformation matrix T using the zyx convention
+    body frame angular velocities (p,q,r) to Euler angle rates (phi_dot, theta_dot, psi_dot)
+    """
+    
+    cphi = np.cos(phi)
+    sphi = np.sin(phi)
+    cth  = np.cos(theta)
+    sth  = np.sin(theta)    
+
+    try: 
+        T = np.array([
+            [ 1,  sphi*sth/cth,  cphi*sth/cth ],
+            [ 0,  cphi,          -sphi],
+            [ 0,  sphi/cth,      cphi/cth] ])
+        
+    except ZeroDivisionError:  
+        print ("Tzyx is singular for theta = +-90 degrees." )
+        
+    return T
