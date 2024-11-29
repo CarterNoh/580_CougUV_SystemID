@@ -210,7 +210,7 @@ class Coug:
         nu_dot = Dnu_c + np.matmul(self.Minv, tau_sum) # Acceleration from forces plus ocean current acceleration
 
         # Move the actuators towards commanded value & saturate #TODO: saturating isn't being down here
-        u_actual_dot = self.actuator_dynamics(sampleTime, u_control, self.u_actual) 
+        euler_u, u_actual_dot = self.actuator_dynamics(sampleTime, u_control, self.u_actual) 
 
 
         return nu_dot, u_actual_dot
@@ -313,7 +313,7 @@ class Coug:
         for i in range(len(u_control)):
             u_actual[i] += sampleTime * u_actual_dot[i]
 
-        return u_actual
+        return u_actual, u_actual_dot
 
     def saturate_actuator(self,u_actual):
 
