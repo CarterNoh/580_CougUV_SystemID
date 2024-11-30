@@ -56,3 +56,14 @@ def test_actuator_dynamics():
     assert np.all(np.isclose(new_u_actual, command / 2))
     assert np.all(np.isclose(new_u_actual_dot,first_u_dot))
 
+def test_saturate_actuator():
+    coug1 = coug.Coug()
+    command = [coug1.deltaMax_r]*3
+    command.append(coug1.nMax)
+    maxed_command = np.array(command)
+    over_saturated = maxed_command*2
+
+    coug1.u_actual, _ = coug1.actuator_dynamics(coug1.T_delta, over_saturated, coug1.u_actual)
+    coug1.u_actual = coug1.saturate_actuator(coug1.u_actual)
+
+    assert np.all(np.isclose(coug1.u_actual,maxed_command))
