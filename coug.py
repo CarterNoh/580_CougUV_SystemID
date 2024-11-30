@@ -209,7 +209,7 @@ class Coug:
         tau_sum = tau_control + tau_liftdrag + tau_crossflow - np.matmul(C+D,nu_r) - g
         nu_dot = Dnu_c + np.matmul(self.Minv, tau_sum) # Acceleration from forces plus ocean current acceleration
 
-        # Move the actuators towards commanded value & saturate #TODO: saturating isn't being down here
+        # Move the actuators towards commanded value & saturate #Blake note saturating isn't being done here, but is in state update
         euler_u, u_actual_dot = self.actuator_dynamics(sampleTime, u_control, self.u_actual) 
 
 
@@ -329,9 +329,7 @@ class Coug:
 
         return u_actual
     
-    # TODO: Write this function
     def step(self, command, timestep, method='euler'):
-        # TODO: Write a Runge-Kutta 4 thing to integrate the state and actuator. 
         # Calcuate the new velocities nu and position eta and the new control positions. 
 
         # self.nu = 1

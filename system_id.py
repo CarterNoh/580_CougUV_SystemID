@@ -59,7 +59,7 @@ def cost(params, truth, u, timestep):
 
 
 ### Set Up Simulation ###
-timestep = 1/60. #0.01 # (s). TODO: Tune this? 
+timestep = 1/60. #0.01 # (s). TODO: Tune this? #I set it to 60 fps, what holoocean commonly does.
 
 # Create list of commands
 semantic_commands = [([10,0,0,0],1)] # @Carter generate this part by hand 
