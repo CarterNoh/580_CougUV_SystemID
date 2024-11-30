@@ -315,7 +315,7 @@ class Coug:
 
         return u_actual, u_actual_dot
 
-    def saturate_actuator(self,u_actual):
+    def saturate_actuator(self,u_actual: np.ndarray) -> np.ndarray:
 
         #Saturate fins
         for i in range(len(u_actual)-1):
@@ -346,17 +346,31 @@ class Coug:
             next_nu_dot, next_u_actual_dot = self.dynamics(command,timestep)
             statedot = np.concatenate(nu,next_nu_dot,next_u_actual_dot)
             newState = self.stateEulerStep(prior,statedot,timestep)
-            self.eta = newState[:6].copy()
-            self.nu = newState[6:12].copy()
-            self.u_actual = self.saturate_actuator(newState[12:])
+            self.stateUpdate(newState)
         elif method == 'rk4':
+            #rk4 has k1 = from prior, normal timestep to get statedot
+            # k2 = prior + halfstep with k1, evaluated w half step
+            # k3 = prior + halfstep with k2, evaluated with half step
+            # k4 = prior + full step with k3, evaluated with full step
+            # final is prior + timestep / 6 * (k1 + 2k2 + 2k3 + k4)
             raise NotImplementedError()
         elif method == 'rk3':
-            raise NotImplementedError()
+            #rk3 has k1 = from prior, normal time step statedot
+            # k2 = prior+halfstep with k1, evaluated with half step
+            # k3 = prior+ halfstep with (k1+k2)/2, evaluated w half step
+            # final is prior + normal timestep / 6 * (k1+4k2+k3)
+            next_nu_dot, next_u_actual_dot = self.dynamics(command, timestep)
+            k1 = np.concatenate((nu,next_nu_dot,next_u_actual_dot))
+            tempState = self.stateEulerStep(prior,k1,timestep/2)
         else:
             raise ValueError("method: {} not found, please use euler, rk3 or rk4".format(method))
         
     #### Helper functions ####
+
+    def stateUpdate(self, state):
+        self.eta = state[:6].copy()
+        self.nu = state[6:12].copy()
+        self.u_actual = self.saturate_actuator(state[12:]).copy()
 
     #does this one need to be in the class
     def Hmtrx(self, r):
