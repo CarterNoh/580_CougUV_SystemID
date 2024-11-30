@@ -362,6 +362,16 @@ class Coug:
             next_nu_dot, next_u_actual_dot = self.dynamics(command, timestep)
             k1 = np.concatenate((nu,next_nu_dot,next_u_actual_dot))
             tempState = self.stateEulerStep(prior,k1,timestep/2)
+            self.stateUpdate(tempState)
+            next_nu_dot, next_u_actual_dot = self.dynamics(command, timestep/2)
+            k2 = np.concatenate((nu,next_nu_dot,next_u_actual_dot))
+            tempState = self.stateEulerStep(prior, (k1+k2)/2,timestep/2)
+            self.stateUpdate(tempState)
+            next_nu_dot, next_u_actual_dot = self.dynamics(command, timestep/2)
+            k3 = np.concatenate((nu, next_nu_dot,next_u_actual_dot))
+            sumStateDot = (k1+4*k2+k3)/6
+            final_state =self.stateEulerStep(prior,sumStateDot,timestep)
+            self.stateUpdate(final_state)
         else:
             raise ValueError("method: {} not found, please use euler, rk3 or rk4".format(method))
         
