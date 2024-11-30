@@ -353,7 +353,23 @@ class Coug:
             # k3 = prior + halfstep with k2, evaluated with half step
             # k4 = prior + full step with k3, evaluated with full step
             # final is prior + timestep / 6 * (k1 + 2k2 + 2k3 + k4)
-            raise NotImplementedError()
+            next_nu_dot, next_u_actual_dot = self.dynamics(command, timestep)
+            k1 = np.concatenate((nu,next_nu_dot,next_u_actual_dot))
+            tempState = self.stateEulerStep(prior,k1,timestep/2)
+            self.stateUpdate(tempState)
+            next_nu_dot, next_u_actual_dot = self.dynamics(command,timestep/2)
+            k2 = np.concatenate((nu,next_nu_dot,next_u_actual_dot))
+            tempState = self.stateEulerStep(prior,k2,timestep/2)
+            self.stateUpdate(tempState)
+            next_nu_dot, next_u_actual_dot = self.dynamics(command, timestep/2)
+            k3 = np.concatenate((nu,next_nu_dot,next_u_actual_dot))
+            tempState = self.stateEulerStep(prior, k3, timestep)
+            self.stateUpdate()
+            next_nu_dot, next_u_actual_dot = self.dynamics(command, timestep)
+            k4 = np.concatenate((nu, next_nu_dot, next_u_actual_dot))
+            sumStateDot = (k1 + 2*k2 + 2*k3 + k4)/6
+            final_state = self.stateEulerStep(prior,sumStateDot,timestep)
+            self.stateUpdate(final_state)
         elif method == 'rk3':
             #rk3 has k1 = from prior, normal time step statedot
             # k2 = prior+halfstep with k1, evaluated with half step
