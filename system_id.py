@@ -38,10 +38,10 @@ def simulate(params, u, timestep):
     etas = []
 
     for command in u:
-        nu_dot, u_actual_dot = coug.dynamics(command, timestep) 
-        coug.step(nu_dot, u_actual_dot)
+        # nu_dot, u_actual_dot = coug.dynamics(command, timestep) 
+        coug.step(command, timestep)
         # append coug.eta, coug.nu, coug.u_actual to some lists or something
-        etas.append(coug.eta)
+        etas.append(coug.eta.copy())
     # TODO: What are we returning here? The state eta probably? Not sure if we need nu or u_actual. 
 
     # Output: A matrix of the true state at each timestep, flattened into a vector

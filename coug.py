@@ -330,13 +330,31 @@ class Coug:
         return u_actual
     
     # TODO: Write this function
-    def step(self, nu_dot, u_actual_dot, method='euler'):
+    def step(self, command, timestep, method='euler'):
         # TODO: Write a Runge-Kutta 4 thing to integrate the state and actuator. 
         # Calcuate the new velocities nu and position eta and the new control positions. 
 
-        self.nu = 1
-        self.eta = 1
-        self.u_actual = 1
+        # self.nu = 1
+        # self.eta = 1
+        # self.u_actual = 1
+        nu = self.nu.copy() #array of size 6
+        eta = self.eta.copy() #array of size 6
+        u_actual = self.u_actual.copy() #array of size 4
+        prior = np.concatenate((eta,nu,u_actual))
+
+        if method == 'euler':
+            next_nu_dot, next_u_actual_dot = self.dynamics(command,timestep)
+            statedot = np.concatenate(nu,next_nu_dot,next_u_actual_dot)
+            newState = self.stateEulerStep(prior,statedot,timestep)
+            self.eta = newState[:6].copy()
+            self.nu = newState[6:12].copy()
+            self.u_actual = self.saturate_actuator(newState[12:])
+        elif method == 'rk4':
+            raise NotImplementedError()
+        elif method == 'rk3':
+            raise NotImplementedError()
+        else:
+            raise ValueError("method: {} not found, please use euler, rk3 or rk4".format(method))
         
     #### Helper functions ####
 
@@ -368,10 +386,18 @@ class Coug:
         v_dot   = np.matmul(Tzyx(eta[3], eta[4]), nu[3:6] )
 
         # Forward Euler integration
-        eta[0:3] = eta[0:3] + sampleTime * p_dot
-        eta[3:6] = eta[3:6] + sampleTime * v_dot
+        output = np.zeros_like(eta)
+        output = eta[0:3] + sampleTime * p_dot
+        output = eta[3:6] + sampleTime * v_dot
 
-        return eta
+        return output
+    
+    def stateEulerStep(self, state, state_dot, timeStep):
+        new_state = np.zeros_like(state)
+        state_dot_transformed = state_dot.copy()
+        state_dot_transformed[:6] = velocityTransform(state[:6],state_dot[0:6])
+        new_state = state + timeStep * state_dot_transformed
+        return new_state
 
     def m2c(self, M, nu):
         """
@@ -515,7 +541,16 @@ class Coug:
 
         return tau_liftdrag
 
-    
+def velocityTransform(eta, nu):
+    #transform the velocity
+    #modeled after attitudeEuler
+    #but doesnt do euler step, for use w/ rk3 or rk4
+    p_dot = np.matmul(Rzyx(eta[3],eta[4],eta[5]),nu[:3])
+    temp = nu[3:6].copy()
+    temp.resize(3,1)
+    v_dot = np.matmul(Tzyx(eta[3],eta[4]),nu[3:6])
+    return np.append(p_dot,v_dot)
+
 #Todo: move to a helper file
 def Smtrx(a):
         """
