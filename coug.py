@@ -320,8 +320,8 @@ class Coug:
         #Saturate fins
         for i in range(len(u_actual)-1):
             # Amplitude saturation of the control signals
-            if abs(u_actual[i]) >= self.deltaMax:
-                u_actual[i] = np.sign(u_actual[i]) * self.deltaMax
+            if abs(u_actual[i]) >= self.deltaMax_r:
+                u_actual[i] = np.sign(u_actual[i]) * self.deltaMax_r
 
         # Saturate thruster value  
         if abs(u_actual[-1]) >= self.nMax:
