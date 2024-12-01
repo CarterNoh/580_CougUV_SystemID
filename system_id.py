@@ -78,7 +78,7 @@ params_init = 1 #TODO: figure out how we want the parameter variable to look/act
     # and simulates the full behavior, then calculates the residuals against the true behavior.
     # The optimizer will calculate the gradient and adjust the parameters accordingly. 
 
-# opt_params = opt.least_squares(residuals, params_init, method='lm')
+opt_params = opt.least_squares(residuals, params_init, method='lm')
 # this is gonna take absolutely forever to run. 
 # When we're just getting started, start with a really short list of commands.
 # It won't be long enough ot converge, but it will at least not take a milion years just to test. 
