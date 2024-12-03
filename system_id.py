@@ -34,15 +34,21 @@ def generate_commands(u_semantic: list) -> np.ndarray:
 
 def simulate(params, u, timestep):
 
-    coug = Coug(params)
+    # TODO: make dictionary out of params.
+    # custom to this run: this is where we manually define what variables we're going to run system ID on. 
+    # Does doing it this way make it hard for the optimizer to compute a gradient or anything like that?
+    if params == None:
+        param_dict = None
+    else:
+        param_dict = {'r44': params[0]}
+        # etc
+
+    coug = Coug(param_dict)
     etas = []
 
     for command in u:
-        # nu_dot, u_actual_dot = coug.dynamics(command, timestep) 
         coug.step(command, timestep)
-        # append coug.eta, coug.nu, coug.u_actual to some lists or something
         etas.append(coug.eta.copy())
-    # TODO: What are we returning here? The state eta probably? Not sure if we need nu or u_actual. 
 
     # Output: A matrix of the true state at each timestep, flattened into a vector
     etas = np.array(etas).flatten()
@@ -50,39 +56,43 @@ def simulate(params, u, timestep):
     return etas
 
 def residuals(params, truth, u, timestep):
+    '''
+    At each iteration of the optimization, the system will call the residuals function, which will 
+    in turn call the simulate function. That simulation will initialize a coug with some parameters
+    and simulates the full behavior, then calculates the residuals against the true behavior. The 
+    optimizer will calculate the gradient and adjust the parameters accordingly.
+    '''
+
     return truth - simulate(params, u, timestep)
 
-def cost(params, truth, u, timestep):
-    # TODO Do we need this? 
-    return 
-
+# def cost(params, truth, u, timestep):
+#     # TODO Do we need this? 
+#     return 
 
 
 ### Set Up Simulation ###
-timestep = 1/60. #0.01 # (s). TODO: Tune this? #I set it to 60 fps, what holoocean commonly does.
+timestep = 1/60    # (s). Set to 60 fps, what holoocean commonly does.
+step_per_sec = 1/timestep
 
 # Create list of commands
-semantic_commands = [([10,0,0,0],1)] # @Carter generate this part by hand 
+semantic_commands = [([ 0, 0, 0, 1000], int(5*step_per_sec)), # Straight
+                     ([ 5, 5,-5, 1000], int(5*step_per_sec)), # Negative Roll
+                     ([ 0, 0, 0, 1000], int(5*step_per_sec)), # Straight
+                     ([-5,-5, 5, 1000], int(5*step_per_sec)), # Positive Roll
+                     ([ 0, 0, 0, 1000], int(5*step_per_sec))] # Straight
 commands = generate_commands(semantic_commands)
 
 # Simulate with true parameters to get ground truth
-# true_state = simulate(None, commands, timestep)
+true_state = simulate(None, commands, timestep)
 
-# Initialize parameters to something
-params_init = 1 #TODO: figure out how we want the parameter variable to look/act/work
+# Initialize parameters to something. TODO: actually do this once we decide what parameters we want. 
+params_init = [1] #TODO: figure out how we want the parameter variable to look/act/work 
 
-
-### Run optimization ###
-    # At each iteration, the system will call the resuduals function, which will in turn 
-    # call the simulate function. That simulation will initialize a coug with some parameters
-    # and simulates the full behavior, then calculates the residuals against the true behavior.
-    # The optimizer will calculate the gradient and adjust the parameters accordingly. 
-
-opt_params = opt.least_squares(residuals, params_init, method='lm')
+opt_params = opt.least_squares(residuals, params_init, method='lm', args=(true_state, commands, timestep))
 # this is gonna take absolutely forever to run. 
 # When we're just getting started, start with a really short list of commands.
-# It won't be long enough ot converge, but it will at least not take a milion years just to test. 
-# If I were a good programmer I would make unit tests, instead of writing everythig and testing the whole system at once...
+# It won't be long enough to converge, but it will at least not take a milion years just to test. 
+# If I were a good programmer I would make unit tests, instead of writing everything and testing the whole system at once...
 
-# print(opt_params)
+print(opt_params)
 # find some convenent way to compare optimal param to actual params

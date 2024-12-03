@@ -1,4 +1,5 @@
 import numpy as np
+from helper_functions import *
 
 class Coug:
     '''
@@ -40,7 +41,7 @@ class Coug:
 
         # Other damping/force parameters
         self.Cd = 0.42                  # Coefficient of drag for entire vehicle
-        self.r44 = 0.3                  # Added #TODO: what is this?
+        self.r44 = 0.3                  # Moment arm used to tune roll inertia of the vehicle
 
         # Fin Parameters
         self.S_fin = 0.00697            # Surface area of one side of a fin
@@ -64,6 +65,7 @@ class Coug:
         self.nMax = 2000                # max propeller speed (rpm)
         self.T_n = 0.1                  # propeller time constant (s)
 
+        self.e = 0.7                    # Oswald Efficiency number for lift calculations
 
         ################### OVERWRITE DESIRED PARAMETERS ######################
 
@@ -99,7 +101,7 @@ class Coug:
         Iy = (1/5) * self.m * (a**2 + b**2)
         Iz = Iy
         MRB_CG = np.diag([self.m, self.m, self.m, Ix, Iy, Iz ])   # MRB expressed in the CG     
-        H_rg = self.Hmtrx(self.r_bg)
+        H_rg = Hmtrx(self.r_bg)
         self.MRB = H_rg.T @ MRB_CG @ H_rg           # MRB expressed in the CO
 
         ### Added Mass Matrix
@@ -153,7 +155,7 @@ class Coug:
         :param array-like u_control: Commanded control surface position.
         :param float sampleTime: Time since the last step.
 
-        :returns: Three arrays: nu, u_actual, and nu_dot.
+        :returns: u_actual_dot, nu_dot.
         """
 
         ### Velocity of Vehicle and Current ###
@@ -169,8 +171,8 @@ class Coug:
 
         ### Coriolis Matrix ###
         # Rigid-body/added mass Coriolis/centripetal matrices expressed in the CO
-        CRB = self.m2c(self.MRB, nu_r)
-        CA  = self.m2c(self.MA, nu_r)
+        CRB = m2c(self.MRB, nu_r)
+        CA  = m2c(self.MA, nu_r)
         # CA-terms in roll, pitch and yaw can destabilize the model if quadratic
         # rotational damping is missing. These terms are assumed to be zero. 
         CA[4][0] = 0     # Quadratic velocity terms due to pitching
@@ -195,11 +197,11 @@ class Coug:
         D[1][1] = D[1][1] * np.exp(-3*U_r) # drag and lift forces dominates
 
         ### Hydrodynamic Forces ###
-        tau_liftdrag = self.forceLiftDrag(self.diam,self.S,self.CD_0,alpha,U_r)
-        tau_crossflow = self.crossFlowDrag(self.L,self.diam,self.diam,nu_r)
+        tau_liftdrag = self.forceLiftDrag(alpha,U_r)
+        tau_crossflow = self.crossFlowDrag(nu_r)
 
         ### Restoring Forces ###
-        g = self.gvect(self.W, self.B, self.eta[4], self.eta[3], self.r_bg, self.r_bb)
+        g = self.gvect() #self.W, self.B, self.eta[4], self.eta[3], self.r_bg, self.r_bb
 
         ### Control Forces ###
         tau_control = self.control_forces(self.u_actual, nu_r, U)
@@ -219,12 +221,16 @@ class Coug:
         """
         Vehicle-specific calculations for dynamics of the actuators (fins and thruster).
 
-        Note: For Torpedo Vehicles, positive fin deflection will pitch the vehicle up and yaw to the starboard side.
+        NOTE: 
+        - For rudder, positive command turns the rudder CCW. Yaws vehicle right, negative roll.
+        - For left elevator, pos. com. turns the elev. CCW. Pitches vehicle up in coordination, negative roll. 
+        - For right elevator, pos, cm. turns the elev. CW.  Pitches vehicle up in coordination, positive roll.
 
         :param array-like u_actual: Current control surface position.
         :param array-like nu_r: Reference velocity of the vehicle in the body frame.
+        :param float U: forward speed of the vehicle
 
-        :returns: two arrays: forces and moments
+        :returns: (6,) numpy array of forces and moments
         """
 
         ################### FIN CALCULATIONS #########################
@@ -239,7 +245,7 @@ class Coug:
 
         #Positive rudder deflection turn the vehicle right, positive elevator deflection pitches vehicle up
 
-        #lift forces on the elevator fins on right and left both positive set direction below
+        #lift forces on the elevator fins on right and left both positive; set direction below
         fl_re = 0.5 * self.rho * U_re**2 * self.S_fin * self.CL_delta_s * delta_re
         fl_le = 0.5 * self.rho * U_re**2 * self.S_fin * self.CL_delta_s * delta_le
 
@@ -332,9 +338,6 @@ class Coug:
     def step(self, command, timestep, method='euler'):
         # Calcuate the new velocities nu and position eta and the new control positions. 
 
-        # self.nu = 1
-        # self.eta = 1
-        # self.u_actual = 1
         nu = self.nu.copy() #array of size 6
         eta = self.eta.copy() #array of size 6
         u_actual = self.u_actual.copy() #array of size 4
@@ -342,7 +345,7 @@ class Coug:
 
         if method == 'euler':
             next_nu_dot, next_u_actual_dot = self.dynamics(command,timestep)
-            statedot = np.concatenate(nu,next_nu_dot,next_u_actual_dot)
+            statedot = np.concatenate((nu,next_nu_dot,next_u_actual_dot))
             newState = self.stateEulerStep(prior,statedot,timestep)
             self.stateUpdate(newState)
         elif method == 'rk4':
@@ -395,40 +398,6 @@ class Coug:
         self.eta = state[:6].copy()
         self.nu = state[6:12].copy()
         self.u_actual = self.saturate_actuator(state[12:]).copy()
-
-    #does this one need to be in the class
-    def Hmtrx(self, r):
-        """
-        H = Hmtrx(r) computes the 6x6 system transformation matrix
-        H = [eye(3)     S'
-            zeros(3,3) eye(3) ]       Property: inv(H(r)) = H(-r)
-
-        If r = r_bg is the vector from the CO to the CG, the model matrices in CO and
-        CG are related by: M_CO = H(r_bg)' * M_CG * H(r_bg). Generalized position and
-        force satisfy: eta_CO = H(r_bg)' * eta_CG and tau_CO = H(r_bg)' * tau_CG 
-        """
-
-        H = np.identity(6,float)
-        H[0:3, 3:6] = Smtrx(r).T
-
-        return H
-
-    #might not need to be in the class
-    def attitudeEuler(self, eta, nu, sampleTime):
-        """
-        eta = attitudeEuler(eta,nu,sampleTime) computes the generalized 
-        position/Euler angles eta[k+1]
-        """
-    
-        p_dot   = np.matmul(Rzyx(eta[3], eta[4], eta[5]), nu[0:3] )
-        v_dot   = np.matmul(Tzyx(eta[3], eta[4]), nu[3:6] )
-
-        # Forward Euler integration
-        output = np.zeros_like(eta)
-        output = eta[0:3] + sampleTime * p_dot
-        output = eta[3:6] + sampleTime * v_dot
-
-        return output
     
     def stateEulerStep(self, state, state_dot, timeStep):
         new_state = np.zeros_like(state)
@@ -437,46 +406,71 @@ class Coug:
         new_state = state + timeStep * state_dot_transformed
         return new_state
 
-    def m2c(self, M, nu):
+    def coeffLiftDrag(self, alpha, sigma):
         """
-        C = m2c(M,nu) computes the Coriolis and centripetal matrix C from the
-        mass matrix M and generalized velocity vector nu (Fossen 2021, Ch. 3)
-        """
+        [CL,CD] = coeffLiftDrag(b,S,CD_0,alpha,sigma) computes the hydrodynamic 
+        lift CL(alpha) and drag CD(alpha) coefficients as a function of alpha
+        (angle of attack) of a submerged "wing profile" (Beard and McLain 2012)
 
-        M = 0.5 * (M + M.T)     # systematization of the inertia matrix
+        CD(alpha) = CD_p + (CL_0 + CL_alpha * alpha)^2 / (pi * e * AR)
+        CL(alpha) = CL_0 + CL_alpha * alpha
 
-        if (len(nu) == 6):      #  6-DOF model
+        where CD_p is the parasitic drag (profile drag of wing, friction and
+        pressure drag of control surfaces, hull, etc.), CL_0 is the zero angle 
+        of attack lift coefficient, AR = b^2/S is the aspect ratio and e is the  
+        Oswald efficiency number. For lift it is assumed that
+
+        CL_0 = 0
+        CL_alpha = pi * AR / ( 1 + sqrt(1 + (AR/2)^2) );
+
+        implying that for alpha = 0, CD(0) = CD_0 = CD_p and CL(0) = 0. For
+        high angles of attack the linear lift model can be blended with a
+        nonlinear model to describe stall
+
+        CL(alpha) = (1-sigma) * CL_alpha * alpha + ...
+            sigma * 2 * sign(alpha) * sin(alpha)^2 * cos(alpha) 
+
+        where 0 <= sigma <= 1 is a blending parameter. 
         
-            M11 = M[0:3,0:3]
-            M12 = M[0:3,3:6] 
-            M21 = M12.T
-            M22 = M[3:6,3:6] 
+        Inputs:
+            b:       wing span (m)
+            S:       wing area (m^2)
+            CD_0:    parasitic drag (alpha = 0), typically 0.1-0.2 for a 
+                    streamlined body
+            alpha:   angle of attack, scalar or vector (rad)
+            sigma:   blending parameter between 0 and 1, use sigma = 0 f
+                    or linear lift 
+            display: use 1 to plot CD and CL (optionally)
         
-            nu1 = nu[0:3]
-            nu2 = nu[3:6]
-            dt_dnu1 = np.matmul(M11,nu1) + np.matmul(M12,nu2)
-            dt_dnu2 = np.matmul(M21,nu1) + np.matmul(M22,nu2)
+        Returns:
+            CL: lift coefficient as a function of alpha   
+            CD: drag coefficient as a function of alpha   
 
-            #C  = [  zeros(3,3)      -Smtrx(dt_dnu1)
-            #      -Smtrx(dt_dnu1)  -Smtrx(dt_dnu2) ]
-            C = np.zeros( (6,6) )    
-            C[0:3,3:6] = -self.Smtrx(dt_dnu1)
-            C[3:6,0:3] = -self.Smtrx(dt_dnu1)
-            C[3:6,3:6] = -self.Smtrx(dt_dnu2)
-                
-        else:   # 3-DOF model (surge, sway and yaw)
-            #C = [ 0             0            -M(2,2)*nu(2)-M(2,3)*nu(3)
-            #      0             0             M(1,1)*nu(1)
-            #      M(2,2)*nu(2)+M(2,3)*nu(3)  -M(1,1)*nu(1)          0  ]    
-            C = np.zeros( (3,3) ) 
-            C[0,2] = -M[1,1] * nu[1] - M[1,2] * nu[2]
-            C[1,2] =  M[0,0] * nu[0] 
-            C[2,0] = -C[0,2]       
-            C[2,1] = -C[1,2]
+        Example:
+            Cylinder-shaped AUV with length L = 1.8, diameter D = 0.2 and 
+            CD_0 = 0.3
             
-        return C
+            alpha = 0.1 * pi/180
+            [CL,CD] = coeffLiftDrag(0.2, 1.8*0.2, 0.3, alpha, 0.2)
+        """
+        
+        #e = 0.7 # make it vehicle parameter     # Oswald efficiency number
+        AR = self.diam**2 / self.S       # wing aspect ratio
 
-    def forceLiftDrag(self, b,S,CD_0,alpha,U_r):
+        # linear lift
+        CL_alpha = np.pi * AR / ( 1 + np.sqrt(1 + (AR/2)**2) )
+        CL = CL_alpha * alpha
+
+        # parasitic and induced drag
+        CD = self.CD_0 + CL**2 / (np.pi * self.e * AR)
+        
+        # nonlinear lift (blending function)
+        CL = (1-sigma) * CL + sigma * 2 * np.sign(alpha) \
+            * np.sin(alpha)**2 * np.cos(alpha)
+
+        return CL, CD
+
+    def forceLiftDrag(self, alpha, U_r):
         """
         tau_liftdrag = forceLiftDrag(b,S,CD_0,alpha,Ur) computes the hydrodynamic
         lift and drag forces of a submerged "wing profile" for varying angle of
@@ -494,79 +488,12 @@ class Coug:
         Returns:
             tau_liftdrag:  6x1 generalized force vector
         """
-        raise NotImplementedError
-
-        #helper function
-        def coeffLiftDrag(b,S,CD_0,alpha,sigma):
-            
-            """
-            [CL,CD] = coeffLiftDrag(b,S,CD_0,alpha,sigma) computes the hydrodynamic 
-            lift CL(alpha) and drag CD(alpha) coefficients as a function of alpha
-            (angle of attack) of a submerged "wing profile" (Beard and McLain 2012)
-
-            CD(alpha) = CD_p + (CL_0 + CL_alpha * alpha)^2 / (pi * e * AR)
-            CL(alpha) = CL_0 + CL_alpha * alpha
-    
-            where CD_p is the parasitic drag (profile drag of wing, friction and
-            pressure drag of control surfaces, hull, etc.), CL_0 is the zero angle 
-            of attack lift coefficient, AR = b^2/S is the aspect ratio and e is the  
-            Oswald efficiency number. For lift it is assumed that
-    
-            CL_0 = 0
-            CL_alpha = pi * AR / ( 1 + sqrt(1 + (AR/2)^2) );
-    
-            implying that for alpha = 0, CD(0) = CD_0 = CD_p and CL(0) = 0. For
-            high angles of attack the linear lift model can be blended with a
-            nonlinear model to describe stall
-    
-            CL(alpha) = (1-sigma) * CL_alpha * alpha + ...
-                sigma * 2 * sign(alpha) * sin(alpha)^2 * cos(alpha) 
-
-            where 0 <= sigma <= 1 is a blending parameter. 
-            
-            Inputs:
-                b:       wing span (m)
-                S:       wing area (m^2)
-                CD_0:    parasitic drag (alpha = 0), typically 0.1-0.2 for a 
-                        streamlined body
-                alpha:   angle of attack, scalar or vector (rad)
-                sigma:   blending parameter between 0 and 1, use sigma = 0 f
-                        or linear lift 
-                display: use 1 to plot CD and CL (optionally)
-            
-            Returns:
-                CL: lift coefficient as a function of alpha   
-                CD: drag coefficient as a function of alpha   
-
-            Example:
-                Cylinder-shaped AUV with length L = 1.8, diameter D = 0.2 and 
-                CD_0 = 0.3
-                
-                alpha = 0.1 * pi/180
-                [CL,CD] = coeffLiftDrag(0.2, 1.8*0.2, 0.3, alpha, 0.2)
-            """
-            
-            e = 0.7             # Oswald efficiency number
-            AR = b**2 / S       # wing aspect ratio
-
-            # linear lift
-            CL_alpha = np.pi * AR / ( 1 + np.sqrt(1 + (AR/2)**2) )
-            CL = CL_alpha * alpha
-
-            # parasitic and induced drag
-            CD = CD_0 + CL**2 / (np.pi * e * AR)
-            
-            # nonlinear lift (blending function)
-            CL = (1-sigma) * CL + sigma * 2 * np.sign(alpha) \
-                * np.sin(alpha)**2 * np.cos(alpha)
-
-            return CL, CD
-
+        # raise NotImplementedError
         
-        [CL, CD] = coeffLiftDrag(b,S,CD_0,alpha,0) 
+        [CL, CD] = self.coeffLiftDrag(alpha,0) 
         
-        F_drag = 1/2 * self.rho * U_r**2 * S * CD    # drag force
-        F_lift = 1/2 * self.rho * U_r**2 * S * CL    # lift force
+        F_drag = 1/2 * self.rho * U_r**2 * self.S * CD    # drag force
+        F_lift = 1/2 * self.rho * U_r**2 * self.S * CL    # lift force
 
         # transform from FLOW axes to BODY axes using angle of attack
         tau_liftdrag = np.array([
@@ -579,6 +506,73 @@ class Coug:
 
         return tau_liftdrag
 
+    def crossFlowDrag(self, nu_r):
+        """
+        tau_crossflow = crossFlowDrag(L,B,T,nu_r) computes the cross-flow drag 
+        integrals for a marine craft using strip theory. 
+
+        M d/dt nu_r + C(nu_r)*nu_r + D*nu_r + g(eta) = tau + tau_crossflow
+        """
+
+        n = 20                   # number of strips
+
+        dx = self.L/20             
+        Cd_2D = Hoerner(self.diam, self.diam)    # 2D drag coefficient based on Hoerner's curve
+
+        Yh = 0
+        Nh = 0
+        xL = -self.L/2
+        
+        for i in range(0,n+1):
+            v_r = nu_r[1]             # relative sway velocity
+            r = nu_r[5]               # yaw rate
+            Ucf = abs(v_r + xL * r) * (v_r + xL * r)
+            Yh = Yh - 0.5 * self.rho * self.diam * Cd_2D * Ucf * dx         # sway force
+            Nh = Nh - 0.5 * self.rho * self.diam * Cd_2D * xL * Ucf * dx    # yaw moment
+            xL += dx
+            
+        tau_crossflow = np.array([0, Yh, 0, 0, 0, Nh],float)
+
+        return tau_crossflow
+
+    def gvect(self):
+            """
+            g = gvect(W,B,theta,phi,r_bg,r_bb) computes the 6x1 vector of restoring 
+            forces about an arbitrarily point CO for a submerged body. 
+            
+            Inputs:
+                W, B: weight and buoyancy (kg)
+                phi,theta: roll and pitch angles (rad)
+                r_bg = [x_g y_g z_g]: location of the CG with respect to the CO (m)
+                r_bb = [x_b y_b z_b]: location of the CB with respect to th CO (m)
+                
+            Returns:
+                g: 6x1 vector of restoring forces about CO
+            """
+            W = self.W
+            B = self.B
+            theta = self.eta[4]
+            phi = self.eta[3]
+            r_bg = self.r_bg
+            r_bb = self.r_bb
+
+            sth  = np.sin(theta)
+            cth  = np.cos(theta)
+            sphi = np.sin(phi)
+            cphi = np.cos(phi)
+
+            g = np.array([
+                (W-B) * sth,
+                -(W-B) * cth * sphi,
+                -(W-B) * cth * cphi,
+                -(r_bg[1]*W-r_bb[1]*B) * cth * cphi + (r_bg[2]*W-r_bb[2]*B) * cth * sphi,
+                (r_bg[2]*W-r_bb[2]*B) * sth         + (r_bg[0]*W-r_bb[0]*B) * cth * cphi,
+                -(r_bg[0]*W-r_bb[0]*B) * cth * sphi - (r_bg[1]*W-r_bb[1]*B) * sth      
+                ])
+            
+            return g
+
+
 def velocityTransform(eta, nu):
     #transform the velocity
     #modeled after attitudeEuler
@@ -590,161 +584,7 @@ def velocityTransform(eta, nu):
     return np.append(p_dot,v_dot)
 
 #Todo: move to a helper file
-def Smtrx(a):
-        """
-        S = Smtrx(a) computes the 3x3 vector skew-symmetric matrix S(a) = -S(a)'.
-        The cross product satisfies: a x b = S(a)b. 
-        """
-    
-        S = np.array([ 
-            [ 0, -a[2], a[1] ],
-            [ a[2],   0,     -a[0] ],
-            [-a[1],   a[0],   0 ]  ])
 
-        return S
 
-def Hoerner(B,T):
-    """
-    CY_2D = Hoerner(B,T)
-    Hoerner computes the 2D Hoerner cross-flow form coeff. as a function of beam 
-    B and draft T.The data is digitized and interpolation is used to compute 
-    other data point than those in the table
-    """
-    
-    # DATA = [B/2T  C_D]
-    DATA1 = np.array([
-        0.0109,0.1766,0.3530,0.4519,0.4728,0.4929,0.4933,0.5585,0.6464,0.8336,
-        0.9880,1.3081,1.6392,1.8600,2.3129,2.6000,3.0088,3.4508, 3.7379,4.0031 
-        ])
-    DATA2 = np.array([
-        1.9661,1.9657,1.8976,1.7872,1.5837,1.2786,1.2108,1.0836,0.9986,0.8796,
-        0.8284,0.7599,0.6914,0.6571,0.6307,0.5962,0.5868,0.5859,0.5599,0.5593 
-        ])
 
-    CY_2D = np.interp( B / (2 * T), DATA1, DATA2 )
-        
-    return CY_2D
 
-def crossFlowDrag(L,B,T,nu_r):
-    """
-    tau_crossflow = crossFlowDrag(L,B,T,nu_r) computes the cross-flow drag 
-    integrals for a marine craft using strip theory. 
-
-    M d/dt nu_r + C(nu_r)*nu_r + D*nu_r + g(eta) = tau + tau_crossflow
-    """
-
-    rho = 1026               # density of water
-    n = 20                   # number of strips
-
-    dx = L/20             
-    Cd_2D = Hoerner(B,T)    # 2D drag coefficient based on Hoerner's curve
-
-    Yh = 0
-    Nh = 0
-    xL = -L/2
-    
-    for i in range(0,n+1):
-        v_r = nu_r[1]             # relative sway velocity
-        r = nu_r[5]               # yaw rate
-        Ucf = abs(v_r + xL * r) * (v_r + xL * r)
-        Yh = Yh - 0.5 * rho * T * Cd_2D * Ucf * dx         # sway force
-        Nh = Nh - 0.5 * rho * T * Cd_2D * xL * Ucf * dx    # yaw moment
-        xL += dx
-        
-    tau_crossflow = np.array([0, Yh, 0, 0, 0, Nh],float)
-
-    return tau_crossflow
-
-def gvect(W,B,theta,phi,r_bg,r_bb):
-        """
-        g = gvect(W,B,theta,phi,r_bg,r_bb) computes the 6x1 vector of restoring 
-        forces about an arbitrarily point CO for a submerged body. 
-        
-        Inputs:
-            W, B: weight and buoyancy (kg)
-            phi,theta: roll and pitch angles (rad)
-            r_bg = [x_g y_g z_g]: location of the CG with respect to the CO (m)
-            r_bb = [x_b y_b z_b]: location of the CB with respect to th CO (m)
-            
-        Returns:
-            g: 6x1 vector of restoring forces about CO
-        """
-
-        sth  = np.sin(theta)
-        cth  = np.cos(theta)
-        sphi = np.sin(phi)
-        cphi = np.cos(phi)
-
-        g = np.array([
-            (W-B) * sth,
-            -(W-B) * cth * sphi,
-            -(W-B) * cth * cphi,
-            -(r_bg[1]*W-r_bb[1]*B) * cth * cphi + (r_bg[2]*W-r_bb[2]*B) * cth * sphi,
-            (r_bg[2]*W-r_bb[2]*B) * sth         + (r_bg[0]*W-r_bb[0]*B) * cth * cphi,
-            -(r_bg[0]*W-r_bb[0]*B) * cth * sphi - (r_bg[1]*W-r_bb[1]*B) * sth      
-            ])
-        
-        return g
-
-def ssa(angle):
-    """
-    angle = ssa(angle) returns the smallest-signed angle in [ -pi, pi )
-    """
-    angle = (angle + np.pi) % (2 * np.pi) - np.pi
-        
-    return angle 
-
-def sat(x, x_min, x_max):
-    """
-    x = sat(x,x_min,x_max) saturates a signal x such that x_min <= x <= x_max
-    """
-    if x > x_max:
-        x = x_max 
-    elif x < x_min:
-        x = x_min
-        
-    return x 
-
-def Rzyx(phi, theta, psi):
-        """
-        R = Rzyx(phi,theta,psi) computes the Euler angle rotation matrix R in SO(3)
-        using the zyx convention
-        converts body to world 
-        """
-        
-        cphi = np.cos(phi)
-        sphi = np.sin(phi)
-        cth  = np.cos(theta)
-        sth  = np.sin(theta)
-        cpsi = np.cos(psi)
-        spsi = np.sin(psi)
-        
-        R = np.array([
-            [ cpsi*cth, -spsi*cphi+cpsi*sth*sphi, spsi*sphi+cpsi*cphi*sth ],
-            [ spsi*cth,  cpsi*cphi+sphi*sth*spsi, -cpsi*sphi+sth*spsi*cphi ],
-            [ -sth,      cth*sphi,                 cth*cphi ] ])
-
-        return R
-
-def Tzyx(phi, theta):
-    """
-    T = Tzyx(phi,theta) computes the Euler angle attitude
-    transformation matrix T using the zyx convention
-    body frame angular velocities (p,q,r) to Euler angle rates (phi_dot, theta_dot, psi_dot)
-    """
-    
-    cphi = np.cos(phi)
-    sphi = np.sin(phi)
-    cth  = np.cos(theta)
-    sth  = np.sin(theta)    
-
-    try: 
-        T = np.array([
-            [ 1,  sphi*sth/cth,  cphi*sth/cth ],
-            [ 0,  cphi,          -sphi],
-            [ 0,  sphi/cth,      cphi/cth] ])
-        
-    except ZeroDivisionError:  
-        print ("Tzyx is singular for theta = +-90 degrees." )
-        
-    return T
