@@ -34,26 +34,54 @@ def generate_commands(u_semantic: list) -> np.ndarray:
 
 def simulate(params, u, timestep):
 
-    # TODO: make dictionary out of params.
-    # custom to this run: this is where we manually define what variables we're going to run system ID on. 
-    # Does doing it this way make it hard for the optimizer to compute a gradient or anything like that?
-    if params == None:
+    if len(params) == 0:
         param_dict = None
     else:
-        param_dict = {'r44': params[0]}
-        # etc
+        param_dict = {
+            # Environment Parameters
+            'rho'       : params[0],
+            # 'V_c'       : params[],
+            # 'beta_c'    : params[],
+
+            # Physical Parameters
+
+
+            # Damping Parameters: 
+            'T_surge'   : params[1],
+            'T_sway'    : params[2],
+            'T_heave'   : params[3],
+            'T_yaw'     : params[4],
+            'zeta_roll' : params[5],
+            'zeta_pitch': params[6],
+            'Cd'        : params[7],
+            # 'e'         : params[],
+            'r44'       : params[8],
+
+            # Fin Parameters
+            'S_fin'     : params[9],
+            'x_fin'     : params[10],
+            'fin_center': params[11],
+
+            # Motor Parameters
+            'T_n'       : params[12],
+
+            
+            }
 
     coug = Coug(param_dict)
-    etas = []
+    states = []
 
     for command in u:
         coug.step(command, timestep)
-        etas.append(coug.eta.copy())
+        state = np.concatenate((coug.eta.copy(), coug.u_actual.copy()), axis=0)
+        states.append(state)
 
     # Output: A matrix of the true state at each timestep, flattened into a vector
-    etas = np.array(etas).flatten()
+    states = np.array(states).flatten()
 
-    return etas
+    # Save the states to something external for plotting or illustrative purposes?
+
+    return states
 
 def residuals(params, truth, u, timestep):
     '''
@@ -65,9 +93,9 @@ def residuals(params, truth, u, timestep):
 
     return truth - simulate(params, u, timestep)
 
-# def cost(params, truth, u, timestep):
-#     # TODO Do we need this? 
-#     return 
+
+
+
 
 
 ### Set Up Simulation ###
@@ -75,24 +103,54 @@ timestep = 1/60    # (s). Set to 60 fps, what holoocean commonly does.
 step_per_sec = 1/timestep
 
 # Create list of commands
-semantic_commands = [([ 0, 0, 0, 1000], int(5*step_per_sec)), # Straight
-                     ([ 5, 5,-5, 1000], int(5*step_per_sec)), # Negative Roll
-                     ([ 0, 0, 0, 1000], int(5*step_per_sec)), # Straight
-                     ([-5,-5, 5, 1000], int(5*step_per_sec)), # Positive Roll
-                     ([ 0, 0, 0, 1000], int(5*step_per_sec))] # Straight
+semantic_commands = [([ 5, 0, 0, 2000], int(0.4*step_per_sec)),]
+
 commands = generate_commands(semantic_commands)
 
 # Simulate with true parameters to get ground truth
-true_state = simulate(None, commands, timestep)
+true_state = simulate([], commands, timestep)
 
-# Initialize parameters to something. TODO: actually do this once we decide what parameters we want. 
-params_init = [1] #TODO: figure out how we want the parameter variable to look/act/work 
+# Initialize parameters 
+params_init = [
+    # Environment Parameters
+    800, # rho
+    # 1, # V_c
+    # 1, # beta_c: only identifiable if V_c =/= 0?
+
+    # Physical Parameters
+
+    # Damping Parameters    
+    1, # T_surge
+    1, # T_sway
+    1, # T_heave
+    2, # T_yaw
+    1, # zeta_roll
+    1, # zeta_pitch
+    1, # Cd
+#    1, # e
+    1, # r44
+
+    # Fin Parameters
+    1, # S_fin
+    1, # x_fin
+    1, # fin_center
+
+    # Propellor Parameters
+    1, # T_n
+
+    ]
 
 opt_params = opt.least_squares(residuals, params_init, method='lm', args=(true_state, commands, timestep))
-# this is gonna take absolutely forever to run. 
-# When we're just getting started, start with a really short list of commands.
-# It won't be long enough to converge, but it will at least not take a milion years just to test. 
-# If I were a good programmer I would make unit tests, instead of writing everything and testing the whole system at once...
 
-print(opt_params)
-# find some convenent way to compare optimal param to actual params
+print('\n')
+print("Final Parameters:")
+print(opt_params.x)
+print(" Iterations: ", opt_params.nfev)
+# Find some better way to present parameters?
+
+### Commands for various parameters
+# Straight: r44, T_n, Cd,zeta_roll, zeta_pitch, T_surge, 
+# Any ONE fin: S_fin, x_fin, fin_center
+
+# Identifiable but takes forever (add back later): CL_delta_r, CL_delta_s, 
+# Unidentifiable (so far): T_delta, e

@@ -41,6 +41,7 @@ class Coug:
 
         # Other damping/force parameters
         self.Cd = 0.42                  # Coefficient of drag for entire vehicle
+        self.e = 0.7                    # Oswald Efficiency number for lift calculations
         self.r44 = 0.3                  # Moment arm used to tune roll inertia of the vehicle
 
         # Fin Parameters
@@ -65,7 +66,7 @@ class Coug:
         self.nMax = 2000                # max propeller speed (rpm)
         self.T_n = 0.1                  # propeller time constant (s)
 
-        self.e = 0.7                    # Oswald Efficiency number for lift calculations
+        
 
         ################### OVERWRITE DESIRED PARAMETERS ######################
 
@@ -295,6 +296,8 @@ class Coug:
             X_prop = self.rho * pow(self.D_prop,4) * self.KT_0 * abs(n_rps) * n_rps 
             K_prop = self.rho * pow(self.D_prop,5) * self.KQ_0 * abs(n_rps) * n_rps 
 
+
+        # Add Forces
         fx = X_r + X_re + X_le + (1-self.t_prop) * X_prop
         fy = Y_r + Y_re + Y_le
         fz = Z_le + Z_re
@@ -335,7 +338,7 @@ class Coug:
 
         return u_actual
     
-    def step(self, command, timestep, method='euler'):
+    def step(self, command, timestep, method='rk4'):
         # Calcuate the new velocities nu and position eta and the new control positions. 
 
         nu = self.nu.copy() #array of size 6
@@ -365,7 +368,7 @@ class Coug:
             next_nu_dot, next_u_actual_dot = self.dynamics(command, timestep/2)
             k3 = np.concatenate((nu,next_nu_dot,next_u_actual_dot))
             tempState = self.stateEulerStep(prior, k3, timestep)
-            self.stateUpdate()
+            self.stateUpdate(tempState)
             next_nu_dot, next_u_actual_dot = self.dynamics(command, timestep)
             k4 = np.concatenate((nu, next_nu_dot, next_u_actual_dot))
             sumStateDot = (k1 + 2*k2 + 2*k3 + k4)/6
