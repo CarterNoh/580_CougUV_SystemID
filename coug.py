@@ -1,5 +1,6 @@
 import numpy as np
 from helper_functions import *
+from numba import njit
 
 class Coug:
     '''
@@ -309,32 +310,35 @@ class Coug:
         return tau
 
     def actuator_dynamics(self, sampleTime, u_control, u_actual):
-        u_actual_dot = []
+        # u_actual_dot = []
 
-        #Fin Speed
-        for i in range(len(u_control)-1):
-            u_actual_dot.append((u_control[i] - u_actual[i]) / self.T_delta) 
+        # #Fin Speed
+        # for i in range(len(u_control)-1):
+        #     u_actual_dot.append((u_control[i] - u_actual[i]) / self.T_delta) 
 
-        #Thruster acceleration
-        u_actual_dot.append((u_control[-1] - u_actual[-1]) / self.T_n) 
+        # #Thruster acceleration
+        # u_actual_dot.append((u_control[-1] - u_actual[-1]) / self.T_n) 
 
-        #Control surface integration
-        for i in range(len(u_control)):
-            u_actual[i] += sampleTime * u_actual_dot[i]
-
+        # #Control surface integration
+        # for i in range(len(u_control)):
+        #     u_actual[i] += sampleTime * u_actual_dot[i]
+        u_actual_dot = (u_control - u_actual) / np.concatenate((np.full(len(u_control)-1, self.T_delta), [self.T_n]))
+        u_actual += sampleTime * u_actual_dot
         return u_actual, u_actual_dot
 
     def saturate_actuator(self,u_actual: np.ndarray) -> np.ndarray:
 
         #Saturate fins
-        for i in range(len(u_actual)-1):
-            # Amplitude saturation of the control signals
-            if abs(u_actual[i]) >= self.deltaMax_r:
-                u_actual[i] = np.sign(u_actual[i]) * self.deltaMax_r
+        # for i in range(len(u_actual)-1):
+        #     # Amplitude saturation of the control signals
+        #     if abs(u_actual[i]) >= self.deltaMax_r:
+        #         u_actual[i] = np.sign(u_actual[i]) * self.deltaMax_r
+        u_actual[:-1] = np.clip(u_actual[:-1], -self.deltaMax_r, self.deltaMax_r)
 
         # Saturate thruster value  
-        if abs(u_actual[-1]) >= self.nMax:
-            u_actual[-1] = np.sign(u_actual[-1]) * self.nMax 
+        # if abs(u_actual[-1]) >= self.nMax:
+        #     u_actual[-1] = np.sign(u_actual[-1]) * self.nMax 
+        u_actual[-1] = np.clip(u_actual[-1], -self.nMax, self.nMax)
 
         return u_actual
     
@@ -404,7 +408,7 @@ class Coug:
     
     def stateEulerStep(self, state, state_dot, timeStep):
         new_state = np.zeros_like(state)
-        state_dot_transformed = state_dot.copy()
+        state_dot_transformed = state_dot
         state_dot_transformed[:6] = velocityTransform(state[:6],state_dot[0:6])
         new_state = state + timeStep * state_dot_transformed
         return new_state
@@ -575,7 +579,6 @@ class Coug:
             
             return g
 
-
 def velocityTransform(eta, nu):
     #transform the velocity
     #modeled after attitudeEuler
@@ -586,7 +589,6 @@ def velocityTransform(eta, nu):
     v_dot = np.matmul(Tzyx(eta[3],eta[4]),nu[3:6])
     return np.append(p_dot,v_dot)
 
-#Todo: move to a helper file
 
 
 

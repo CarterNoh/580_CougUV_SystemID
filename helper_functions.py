@@ -1,7 +1,7 @@
 import numpy as np
+from numba import njit
 
-
-
+@njit
 def Smtrx(a):
         """
         S = Smtrx(a) computes the 3x3 vector skew-symmetric matrix S(a) = -S(a)'.
@@ -15,6 +15,7 @@ def Smtrx(a):
 
         return S
 
+@njit
 def Hmtrx(r):
         """
         H = Hmtrx(r) computes the 6x6 system transformation matrix
@@ -31,6 +32,7 @@ def Hmtrx(r):
 
         return H
 
+@njit
 def m2c(M, nu):
         """
         C = m2c(M,nu) computes the Coriolis and centripetal matrix C from the
@@ -48,8 +50,8 @@ def m2c(M, nu):
         
             nu1 = nu[0:3]
             nu2 = nu[3:6]
-            dt_dnu1 = np.matmul(M11,nu1) + np.matmul(M12,nu2)
-            dt_dnu2 = np.matmul(M21,nu1) + np.matmul(M22,nu2)
+            dt_dnu1 = np.dot(M11,nu1) + np.dot(M12,nu2)
+            dt_dnu2 = np.dot(M21,nu1) + np.dot(M22,nu2)
 
             #C  = [  zeros(3,3)      -Smtrx(dt_dnu1)
             #      -Smtrx(dt_dnu1)  -Smtrx(dt_dnu2) ]
@@ -70,6 +72,7 @@ def m2c(M, nu):
             
         return C
 
+@njit
 def ssa(angle):
     """
     angle = ssa(angle) returns the smallest-signed angle in [ -pi, pi )
@@ -78,6 +81,7 @@ def ssa(angle):
         
     return angle 
 
+@njit
 def sat(x, x_min, x_max):
     """
     x = sat(x,x_min,x_max) saturates a signal x such that x_min <= x <= x_max
@@ -89,6 +93,7 @@ def sat(x, x_min, x_max):
         
     return x 
 
+@njit
 def Rzyx(phi, theta, psi):
         """
         R = Rzyx(phi,theta,psi) computes the Euler angle rotation matrix R in SO(3)
@@ -133,6 +138,7 @@ def Tzyx(phi, theta):
         
     return T
 
+@njit
 def Hoerner(B,T):
     """
     CY_2D = Hoerner(B,T)

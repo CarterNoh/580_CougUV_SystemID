@@ -2,8 +2,8 @@ import numpy as np
 import scipy.optimize as opt
 from coug import Coug
 
-
 ######## CougUV State Estimation #########
+run_history = []
 
 def generate_commands(u_semantic: list) -> np.ndarray:
     '''
@@ -80,7 +80,7 @@ def simulate(params, u, timestep):
     states = np.array(states).flatten()
 
     # Save the states to something external for plotting or illustrative purposes?
-
+    run_history.append(states)
     return states
 
 def residuals(params, truth, u, timestep):
