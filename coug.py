@@ -12,7 +12,7 @@ class Coug:
         ################# INITIALIZE ALL PARAMETERS #######################
         
         # Initilize state and control vectors
-        self.nu = np.array([0, 0, 0, 0, 0, 0], float) # velocity vector in body frame
+        self.nu = np.array([0, 0, 0, 0, 0, 0], float) # position vector in body frame
         self.eta = np.array([0, 0, 0, 0, 0, 0], float) # velocity vector in NED frame
         self.u_actual = np.array([0, 0, 0, 0], float)    # control input vector
 
@@ -30,7 +30,7 @@ class Coug:
         self.m = 16
         self.L = 1.6                    # length (m)
         self.diam = 0.19                # cylinder diameter (m)
-        self.area_fraction = np.pi/4    # relates vehicle effective area to length and width. pi/4 for a spheroid
+        self.area_fraction = 0.8    # relates vehicle effective area to length and width. pi/4 for a spheroid
 
         # Low-speed linear damping matrix parameters
         self.T_surge = 20               # time constant in surge (s)
