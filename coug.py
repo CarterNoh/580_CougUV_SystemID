@@ -19,8 +19,8 @@ class Coug:
         # Environment Constants
         # TODO: should some of these be class variable's instead?
         self.D2R = np.pi / 180          # deg2rad
-        self.rho = 1000                 # density of water (kg/m^3)
         self.g = 9.81                   # acceleration of gravity (m/s^2)
+        self.rho = 1000                 # density of water (kg/m^3)
         self.V_c = 0                    # velocity of current (m/s)
         self.beta_c = 0 * self.D2R      # current angle (rad)
         

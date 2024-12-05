@@ -44,7 +44,12 @@ def simulate(params, u, timestep):
             # 'beta_c'    : params[],
 
             # Physical Parameters
-
+            # 'r_bg'      : params[],
+            # 'r_bb'      : params[],
+            # 'm'         : params[],
+            # 'L'         : params[],
+            # 'diam'      : params[],
+            # 'area_fraction:': params[],
 
             # Damping Parameters: 
             'T_surge'   : params[1],
@@ -63,6 +68,14 @@ def simulate(params, u, timestep):
             'fin_center': params[11],
 
             # Motor Parameters
+            # 'D_prop'    : params[],
+            # 't_prop'    : params[],
+            # 'Ja_max'    : params[],
+            # 'Va'        : params[],
+            # 'KT_0'      : params[],
+            # 'KQ_0'      : params[],
+            # 'KT_max'    : params[],
+            # 'KQ_max'    : params[],
             'T_n'       : params[12],
 
             
@@ -136,8 +149,16 @@ params_init = [
     1, # fin_center
 
     # Propellor Parameters
+    # 1, # D_prop
+    # 1, # t_prop
+    # 1, # Ja_max
+    # 1, # Va
+    # 1, # KT_0
+    # 1, # KQ_0
+    # 1, # KT_max
+    # 1, # KQ_max
+    # 1, # nMax
     1, # T_n
-
     ]
 
 opt_params = opt.least_squares(residuals, params_init, method='lm', args=(true_state, commands, timestep))
@@ -154,3 +175,5 @@ print(" Iterations: ", opt_params.nfev)
 
 # Identifiable but takes forever (add back later): CL_delta_r, CL_delta_s, 
 # Unidentifiable (so far): T_delta, e
+
+# not worth identifying: deltaMax_r/s, nMax, 
