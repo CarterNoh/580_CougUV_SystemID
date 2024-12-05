@@ -1,6 +1,7 @@
 import numpy as np
 import scipy.optimize as opt
 from coug import Coug
+from helper_functions import Rzyx
 import matplotlib.pyplot as plt
 import warnings
 import time
@@ -29,7 +30,6 @@ def generate_commands(u_semantic: list, timestep) -> np.ndarray:
 
     return commands
 
-
 def simulate(params, u, timestep):
 
     if len(params) == 0:
@@ -38,35 +38,35 @@ def simulate(params, u, timestep):
         param_dict = {
             # Environment Parameters
             # 'rho'       : params[0],
-            # 'V_c'       : params[],
-            # 'beta_c'    : params[],
+            'V_c'       : params[0],
+            'beta_c'    : params[1],
 
             # Physical Parameters
-            'r_bg'          : params[0:3],
+            'r_bg'          : params[2:5],
             # 'r_bb'          : params[3:6],
             # 'm'             : params[3],
             # 'L'             : params[3],
-            'diam'          : params[3],
-            'area_fraction' : params[4],
+            'diam'          : params[5],
+            'area_fraction' : params[6],
 
             # Damping Parameters: 
-            'T_surge'       : params[5],
-            'T_sway'        : params[6],
-            'T_heave'       : params[7],
-            'T_yaw'         : params[8],
-            'zeta_roll'     : params[9],
-            'zeta_pitch'    : params[10],
-            'Cd'            : params[11],
-            'e'             : params[12],
-            'r44'           : params[13],
+            'T_surge'       : params[7],
+            'T_sway'        : params[8],
+            'T_heave'       : params[9],
+            'T_yaw'         : params[10],
+            'zeta_roll'     : params[11],
+            'zeta_pitch'    : params[12],
+            'Cd'            : params[13],
+            'e'             : params[14],
+            'r44'           : params[15],
 
             # Fin Parameters
-            'S_fin'         : params[14],
-            'x_fin'         : params[15],
-            'fin_center'    : params[16],
-            'CL_delta_r'    : params[17],
+            'S_fin'         : params[16],
+            'x_fin'         : params[17],
+            'fin_center'    : params[18],
+            'CL_delta_r'    : params[19],
             # 'CL_delta_s'    : params[18],
-            'T_delta'       : params[18],
+            'T_delta'       : params[20],
 
             # Motor Parameters
             # 'D_prop'        : params[16],
@@ -77,7 +77,7 @@ def simulate(params, u, timestep):
             # 'KQ_0'          : params[],
             # 'KT_max'        : params[],
             # 'KQ_max'        : params[],
-            'T_n'           : params[19],
+            'T_n'           : params[21],
             }
 
     coug = Coug(param_dict)
@@ -96,7 +96,6 @@ def simulate(params, u, timestep):
 
     return states
 
-
 def residuals(params, truth, u, timestep):
     '''
     Residuals for the optimizer to minimize.
@@ -114,7 +113,7 @@ def cost(params, truth, u, timestep):
 
 
 
-### Set Up Simulation ###
+########## MAIN ##########
 timestep = 1/60    # (s). Set to 60 fps, what holoocean commonly does.
 
 # Create list of commands
@@ -135,12 +134,12 @@ true_states = simulate([], commands, timestep)
 params_init = [
     # Environment Parameters
     # 800, # rho
-    # 1, # V_c
-    # 1, # beta_c: only identifiable if V_c =/= 0?
+    1, # V_c
+    np.pi*3/4, # beta_c: only identifiable if V_c =/= 0?
 
     # Physical Parameters
     .1, .1, .1, # r_bg
-    # 0, 0, .02, # r_bb
+    # .1, .1, .1, # r_bb
     # 15, # m
     # 1.2, # L
     1, # diam
@@ -161,7 +160,7 @@ params_init = [
     1, # S_fin
     1, # x_fin
     1, # fin_center
-    0.3, # CL_delta_r
+    1, # CL_delta_r
     # 0.8, # CL_delta_s
     0.5, # T_delta
 
@@ -178,28 +177,130 @@ params_init = [
     1, # T_n
     ]
 
+true_params = [
+    # Environment Parameters
+    # 1000, # rho
+    0.5, # V_c
+    np.pi/6, # beta_c
+
+    # Physical Parameters
+    0, 0, 0.02, # r_bg
+    # 0, 0, 0, # r_bb
+    # 16, # m
+    # 1.6, # L
+    0.19, # diam
+    0.8, # area_fraction
+
+    # Damping Parameters    
+    20, # T_surge
+    20, # T_sway
+    20, # T_heave
+    1, # T_yaw
+    0.3, # zeta_roll
+    0.8, # zeta_pitch
+    0.42, # Cd
+    0.6, # e
+    0.3, # r44
+
+    # Fin Parameters
+    0.00697, # S_fin
+    -0.8, # x_fin
+    0.07, # fin_center
+    0.5, # CL_delta_r
+    # 0.7, # CL_delta_s
+    0.1, # T_delta
+
+    # Propellor Parameters
+    # 0.14, # D_prop
+    # 0.1, # t_prop
+    # 0.6632, # Ja_max
+    # 0.944, # Va
+    # 0.4566, # KT_0
+    # 0.07, # KQ_0
+    # 0.1798, # KT_max
+    # 0.0312, # KQ_max
+    # 2000, # nMax
+    0.1, # T_n
+    ]
+
+###### OPTIMIZE ######
 t = time.time()
 opt_params = opt.least_squares(residuals, params_init, args=(true_states, commands, timestep), method='lm')
 # opt_params = opt.minimize(cost, params_init, args=(true_states, commands, timestep), method='Nelder-Mead')
 time_elapsed = time.time() - t
 
 print("Final Parameters:")
-print(opt_params.x)
-print("Iterations: ", opt_params.nfev)
+print(np.round(np.array(opt_params.x), 6))
+print("Iterations: ", len(run_history)-1)
 print("Time Elapsed: ", time_elapsed)
+print("Cost: ", cost(opt_params.x, true_states, commands, timestep))
 
 
+###### PLOT STATES ######
+def body_to_global(positions, euler_angles):
+    """
+    Convert positions from body frame to global frame using Euler angles.
+    """
+    global_positions = []
+    for pos, angles in zip(positions, euler_angles):
+        phi, theta, psi = angles
+        R = Rzyx(phi, theta, psi)
+        global_pos = R @ pos
+        global_positions.append(global_pos)
+    return global_positions
 
+# Set Up Plotting
+time = np.arange(0, len(true_states)*timestep/16, timestep)
+fig = plt.figure()
+ax1 = fig.add_subplot(131)
+ax1.set_xlabel('time')
+ax1.set_ylabel('X Position')
 
+ax2 = fig.add_subplot(132)
+ax2.set_xlabel('time')
+ax2.set_ylabel('Y Position')
 
-# Plot x, y, and z trajectories
-# take every 20th entry in the state history
-# history_truncated = [run_history[i] for i in range(0, len(run_history), 20)]
+ax3 = fig.add_subplot(133)
+ax3.set_xlabel('time')
+ax3.set_ylabel('Z Position')
 
+# Plot True States
+true_states = true_states.reshape(-1, 16)
+positions = [state[:3] for state in true_states]
+euler_angles = [state[3:6] for state in true_states]
+global_positions = body_to_global(positions, euler_angles)
+ax1.plot(time, [pos[0] for pos in global_positions], label='True', color='black', linewidth=2)
+ax2.plot(time, [pos[1] for pos in global_positions], label='True', color='black', linewidth=2)
+ax3.plot(time, [pos[2] for pos in global_positions], label='True', color='black', linewidth=2)
 
-# true_states = np.array(run_history[0]).reshape(-1, 16)
-# est_states = np.array(run_history[-1]).reshape(-1, 16)
-# plt.subplot(3,1,1)
+# Expand history into individual states
+for i, run in enumerate(run_history[1:-1]):
+    if i%300 == 0:
+        run = run.reshape(-1, 16)
+        # Extract Positions
+        positions = [state[:3] for state in run]
+        euler_angles = [state[3:6] for state in run]
+        global_positions = body_to_global(positions, euler_angles)
+        ax1.plot(time, [pos[0] for pos in global_positions], label=f'Run {i}')
+        ax2.plot(time, [pos[1] for pos in global_positions], label=f'Run {i}')
+        ax3.plot(time, [pos[2] for pos in global_positions], label=f'Run {i}')
+
+# Plot Estimated States
+estimated_states = run_history[-1].reshape(-1, 16)
+positions = [state[:3] for state in estimated_states]
+euler_angles = [state[3:6] for state in estimated_states]
+global_positions = body_to_global(positions, euler_angles)
+ax1.plot(time, [pos[0] for pos in global_positions], label='Estimated', color='red', linestyle='--')
+ax2.plot(time, [pos[1] for pos in global_positions], label='Estimated', color='red', linestyle='--')
+ax3.plot(time, [pos[2] for pos in global_positions], label='Estimated', color='red', linestyle='--')
+
+ax1.legend()
+ax2.legend()
+ax3.legend()
+# plt.tight_layout()
+plt.title('State Estimates Over Optimization Iterations')
+plt.show()
+
 
 
 
@@ -208,8 +309,7 @@ print("Time Elapsed: ", time_elapsed)
 
 
 # Won't converge: m, L, CL_delta_s
-# Sensitive to intial conditions: CL_delta_r, e, 
-# Maybe identifiable but takes forever (sloppy params?): D_prop, t_prop, 
+# Sensitive to intial conditions: CL_delta_r, e
+# Maybe identifiable but takes too long: D_prop, t_prop, 
 # Unidentifiable (so far): rho
-
 # not worth identifying: deltaMax_r/s, nMax, all the motor params

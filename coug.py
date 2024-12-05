@@ -21,8 +21,8 @@ class Coug:
         self.D2R = np.pi / 180          # deg2rad
         self.g = 9.81                   # acceleration of gravity (m/s^2)
         self.rho = 1000                 # density of water (kg/m^3)
-        self.V_c = 0                    # velocity of current (m/s)
-        self.beta_c = 0 * self.D2R      # current angle (rad)
+        self.V_c = 0.5                    # velocity of current (m/s)
+        self.beta_c = 30 * self.D2R      # current angle (rad)
         
         # Vehical physical Parameters
         self.r_bg = np.array([0, 0, 0.02], float)    # CG w.r.t. to the CO
@@ -30,7 +30,7 @@ class Coug:
         self.m = 16
         self.L = 1.6                    # length (m)
         self.diam = 0.19                # cylinder diameter (m)
-        self.area_fraction = 0.8    # relates vehicle effective area to length and width. pi/4 for a spheroid
+        self.area_fraction = 0.8        # relates vehicle effective area to length and width. pi/4 for a spheroid
 
         # Low-speed linear damping matrix parameters
         self.T_surge = 20               # time constant in surge (s)
@@ -42,7 +42,7 @@ class Coug:
 
         # Other damping/force parameters
         self.Cd = 0.42                  # Coefficient of drag for entire vehicle
-        self.e = 0.7                    # Oswald Efficiency number for lift calculations
+        self.e = 0.6                    # Oswald Efficiency number for lift calculations
         self.r44 = 0.3                  # Moment arm used to tune roll inertia of the vehicle
 
         # Fin Parameters
