@@ -49,10 +49,8 @@ class Coug:
         self.S_fin = 0.00697            # Surface area of one side of a fin
         self.x_fin = -self.L/2          # X distance from center of mass to fins
         self.fin_center = 0.07          # Positive Z distance from center of mass to center of pressure
-        self.CL_delta_r = 0.5           # rudder lift coefficient
-        self.CL_delta_s = 0.7           # stern-plane lift coefficient
-        self.deltaMax_r = 20 * self.D2R # max rudder angle (rad)
-        self.deltaMax_s = 20 * self.D2R # max stern plane angle (rad)
+        self.CL_delta = 0.6             # fin lift coefficient
+        self.deltaMax = 20 * self.D2R # max fin angle (rad)
         self.T_delta = 0.1              # rudder/stern plane time constant (s)
 
         # Propellor parameters
@@ -138,13 +136,13 @@ class Coug:
             
      
         ##### CONTROL SURFACES #####
-        # Tail rudder parameters
-        self.A_fin = self.S_fin        # rudder area (m2)
-        self.x_r = -a               # rudder x-position (m)
+        # # Tail rudder parameters
+        # self.A_fin = self.S_fin        # rudder area (m2)
+        # self.x_r = -a               # rudder x-position (m)
 
-        # Stern-plane parameters (double)
-        self.A_s = 2 * self.S_fin        # stern-plane area (m2)
-        self.x_s = -a               # stern-plane z-position (m)
+        # # Stern-plane parameters (double)
+        # self.A_s = 2 * self.S_fin        # stern-plane area (m2)
+        # self.x_s = -a               # stern-plane z-position (m)
 
     def dynamics(self, u_control, sampleTime):
         """
@@ -248,16 +246,16 @@ class Coug:
         #Positive rudder deflection turn the vehicle right, positive elevator deflection pitches vehicle up
 
         #lift forces on the elevator fins on right and left both positive; set direction below
-        fl_re = 0.5 * self.rho * U_re**2 * self.S_fin * self.CL_delta_s * delta_re
-        fl_le = 0.5 * self.rho * U_re**2 * self.S_fin * self.CL_delta_s * delta_le
+        fl_re = 0.5 * self.rho * U_re**2 * self.S_fin * self.CL_delta * delta_re
+        fl_le = 0.5 * self.rho * U_re**2 * self.S_fin * self.CL_delta * delta_le
 
         # Rudder and elevator drag [TODO: these don't look right to me...]
-        X_r = -0.5 * self.rho * U_rh**2 * self.S_fin * self.CL_delta_r * delta_r**2
-        X_re = -0.5 * self.rho * U_re**2 * self.S_fin * self.CL_delta_s * delta_re**2
-        X_le = -0.5 * self.rho * U_re**2 * self.S_fin * self.CL_delta_s * delta_le**2
+        X_r = -0.5 * self.rho * U_rh**2 * self.S_fin * self.CL_delta * delta_r**2
+        X_re = -0.5 * self.rho * U_re**2 * self.S_fin * self.CL_delta * delta_re**2
+        X_le = -0.5 * self.rho * U_re**2 * self.S_fin * self.CL_delta * delta_le**2
 
         # Rudder and elevator sway force (Positive deflection -> negative Y force -> positive Z moment (yaw right))
-        Y_r = -0.5 * self.rho * U_rh**2 * self.S_fin * self.CL_delta_r * delta_r
+        Y_r = -0.5 * self.rho * U_rh**2 * self.S_fin * self.CL_delta * delta_r
         Y_re = -fl_re * np.sin(30 * self.D2R)
         Y_le = fl_le * np.sin(30 * self.D2R)  
 
@@ -331,9 +329,9 @@ class Coug:
         #Saturate fins
         # for i in range(len(u_actual)-1):
         #     # Amplitude saturation of the control signals
-        #     if abs(u_actual[i]) >= self.deltaMax_r:
-        #         u_actual[i] = np.sign(u_actual[i]) * self.deltaMax_r
-        u_actual[:-1] = np.clip(u_actual[:-1], -self.deltaMax_r, self.deltaMax_r)
+        #     if abs(u_actual[i]) >= self.deltaMax:
+        #         u_actual[i] = np.sign(u_actual[i]) * self.deltaMax_
+        u_actual[:-1] = np.clip(u_actual[:-1], -self.deltaMax, self.deltaMax)
 
         # Saturate thruster value  
         # if abs(u_actual[-1]) >= self.nMax:
